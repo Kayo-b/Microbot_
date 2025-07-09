@@ -9,6 +9,8 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.pluginscheduler.api.SchedulablePlugin;
+import net.runelite.client.plugins.microbot.pluginscheduler.event.PluginScheduleEntrySoftStopEvent;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 import javax.inject.Inject;
@@ -21,7 +23,7 @@ import java.awt.*;
         enabledByDefault = false
 )
 @Slf4j
-public class AutoWoodcuttingPlugin extends Plugin {
+public class AutoWoodcuttingPlugin extends Plugin implements SchedulablePlugin {
     @Inject
     private AutoWoodcuttingConfig config;
 
@@ -37,6 +39,16 @@ public class AutoWoodcuttingPlugin extends Plugin {
 
     @Inject
     AutoWoodcuttingScript autoWoodcuttingScript;
+
+    @Override
+    public void onPluginScheduleEntrySoftStopEvent(PluginScheduleEntrySoftStopEvent event) {
+        if (event.getPlugin() == this) {
+            // Cleanup operations
+            Microbot.getClientThread().invokeLater(() -> {
+                Microbot.stopPlugin(this);
+            });
+        }
+    }
 
 
     @Override

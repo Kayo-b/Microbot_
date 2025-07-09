@@ -10,6 +10,9 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.pluginscheduler.api.SchedulablePlugin;
+import net.runelite.client.plugins.microbot.pluginscheduler.event.PluginScheduleEntrySoftStopEvent;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 import javax.inject.Inject;
@@ -22,7 +25,7 @@ import java.awt.*;
         enabledByDefault = false
 )
 @Slf4j
-public class AutoSmeltingPlugin extends Plugin {
+public class AutoSmeltingPlugin extends Plugin implements SchedulablePlugin {
     @Inject
     private AutoSmeltingConfig config;
     @Provides
@@ -52,7 +55,7 @@ public class AutoSmeltingPlugin extends Plugin {
     }
 
     @Subscribe
-    public void onItemContainerChanged(ItemContainerChanged inventory){
+    public void onItemContainerChanged(ItemContainerChanged inventory) {
         if(inventory.getItemContainer().getId()==93) {
             if (!inventory.getItemContainer().contains(ItemID.COAL)) {
                 if (!AutoSmeltingScript.coalBagEmpty) AutoSmeltingScript.coalBagEmpty = true;//TODO this sets the bag to empty when we're smithing and coal is added to our inventory.
@@ -60,6 +63,16 @@ public class AutoSmeltingPlugin extends Plugin {
             if (inventory.getItemContainer().contains(ItemID.COAL)) {
                 if (AutoSmeltingScript.coalBagEmpty) AutoSmeltingScript.coalBagEmpty = false;
             }
+        }
+    }
+
+    @Override
+    public void onPluginScheduleEntrySoftStopEvent(PluginScheduleEntrySoftStopEvent event) {
+        if (event.getPlugin() == this) {
+            // Cleanup operations
+            Microbot.getClientThread().invokeLater(() -> {
+                Microbot.stopPlugin(this);
+            });
         }
     }
 

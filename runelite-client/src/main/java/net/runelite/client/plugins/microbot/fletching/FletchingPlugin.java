@@ -13,6 +13,9 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.util.mouse.VirtualMouse;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.pluginscheduler.api.SchedulablePlugin;
+import net.runelite.client.plugins.microbot.pluginscheduler.event.PluginScheduleEntrySoftStopEvent;
 
 import javax.inject.Inject;
 import java.awt.*;
@@ -23,8 +26,8 @@ import java.awt.*;
         tags = {"fletching", "microbot", "skills"},
         enabledByDefault = false
 )
-@Slf4j
-public class FletchingPlugin extends Plugin {
+@Slf4j 
+public class FletchingPlugin extends Plugin implements SchedulablePlugin {
     @Inject
     private FletchingConfig config;
 
@@ -38,6 +41,16 @@ public class FletchingPlugin extends Plugin {
     private FletchingOverlay fletchingOverlay;
 
     FletchingScript fletchingScript;
+
+    @Override
+    public void onPluginScheduleEntrySoftStopEvent(PluginScheduleEntrySoftStopEvent event) {
+        if (event.getPlugin() == this) {
+            // Cleanup operations
+            Microbot.getClientThread().invokeLater(() -> {
+                Microbot.stopPlugin(this);
+            });
+        }
+    }
 
 
     @Override
