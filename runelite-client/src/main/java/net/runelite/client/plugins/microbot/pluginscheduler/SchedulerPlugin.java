@@ -55,6 +55,7 @@ import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.breakhandler.BreakHandlerConfig;
 import net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript;
 import net.runelite.client.plugins.microbot.pluginscheduler.api.SchedulablePlugin;
+import net.runelite.client.plugins.microbot.pluginscheduler.automation.SocketAutomationManager;
 import net.runelite.client.plugins.microbot.pluginscheduler.condition.Condition;
 import net.runelite.client.plugins.microbot.pluginscheduler.condition.time.TimeCondition;
 import net.runelite.client.plugins.microbot.pluginscheduler.event.PluginScheduleEntryFinishedEvent;
@@ -163,6 +164,9 @@ public class SchedulerPlugin extends Plugin {
     @Inject
     private Notifier notifier;
     
+    // Socket automation manager
+    private SocketAutomationManager socketAutomationManager;
+    
     // UI update throttling
     private long lastPanelUpdateTime = 0;
     private static final long PANEL_UPDATE_THROTTLE_MS = 500; // Minimum 500ms between panel updates
@@ -185,6 +189,10 @@ public class SchedulerPlugin extends Plugin {
         if (config.showOverlay()) {
             overlayManager.add(overlay);
         }
+        
+        // Initialize and start socket automation manager
+        socketAutomationManager = new SocketAutomationManager(this);
+        socketAutomationManager.startSocketListener();
 
         // Load saved schedules from config
 
@@ -318,6 +326,13 @@ public class SchedulerPlugin extends Plugin {
             schedulerWindow.dispose(); // This will stop the timer
             schedulerWindow = null;
         }
+        
+        // Shutdown socket automation manager
+        if (socketAutomationManager != null) {
+            socketAutomationManager.shutdown();
+            socketAutomationManager = null;
+        }
+        
         setState(SchedulerState.UNINITIALIZED);
         this.lastGameState = GameState.UNKNOWN;
     }
