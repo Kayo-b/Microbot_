@@ -8,42 +8,50 @@ import net.runelite.client.plugins.microbot.pluginscheduler.SchedulerPlugin;
 import net.runelite.client.plugins.microbot.pluginscheduler.SchedulerState;
 import net.runelite.client.plugins.microbot.pluginscheduler.model.PluginScheduleEntry;
 
+import javax.swing.SwingUtilities;
 import java.util.List;
 
 @Slf4j
 public class SchedulerApiController {
     private final SchedulerPlugin schedulerPlugin;
     private final Gson gson = new Gson();
+    public static final String VERSION = "0.1.0";
     
     public SchedulerApiController(SchedulerPlugin schedulerPlugin) {
         this.schedulerPlugin = schedulerPlugin;
     }
-    
-    public ApiResponse loadScheduleFromJson(String jsonContent) {
+
+
+    public ApiResponse loadScheduleFromJson(String json) {
         try {
-            List<PluginScheduleEntry> entries = gson.fromJson(jsonContent, 
-                new TypeToken<List<PluginScheduleEntry>>(){}.getType());
-            
-            if (entries == null || entries.isEmpty()) {
-                return new ApiResponse(false, "No valid schedule entries found in JSON", 0);
+
+            List<PluginScheduleEntry> loadedPlugins = 
+            PluginScheduleEntry.fromJson(json, this.VERSION); 
+
+            if (loadedPlugins == null) {
+                log.error("Failed to parse JSON from file");
+                return new ApiResponse(false, "Failed to parse JSON from file",0);
+            }
+
+            // Resolve plugin references
+            for (PluginScheduleEntry entry : loadedPlugins) {
+
+                schedulerPlugin.resolvePluginReferences(entry);
+
+                // Register stop completion callback
+                schedulerPlugin.registerStopCompletionCallback(entry);
             }
             
-            // clear existing schedules
-            schedulerPlugin.getScheduledPlugins().clear();
+            // Replace current plugins
+            schedulerPlugin.updateScheduledPluginFromJson(loadedPlugins);
+
+            // Update UI
+            SwingUtilities.invokeLater(() -> schedulerPlugin.updatePanels());
             
-            // add new entries
-            for (PluginScheduleEntry entry : entries) {
-                schedulerPlugin.getScheduledPlugins().add(entry);
-                log.info("Added schedule entry: {}", entry.getName());
-            }
+            Microbot.log("Loaded " + loadedPlugins.size() + " schedule entries from JSON");
+            log.info("Successfully loaded {} schedule entries from JSON", loadedPlugins.size());
             
-            // save the updated schedule
-            schedulerPlugin.saveScheduledPlugins();
-            
-            Microbot.log("Loaded " + entries.size() + " schedule entries from JSON");
-            log.info("Successfully loaded {} schedule entries from JSON", entries.size());
-            
-            return new ApiResponse(true, "Schedule loaded successfully", entries.size());
+            return new ApiResponse(true, "Schedule loaded successfully", loadedPlugins.size());
         } catch (Exception e) {
             log.error("Failed to load schedule from JSON: {}", e.getMessage(), e);
             return new ApiResponse(false, "Failed to load schedule: " + e.getMessage(), 0);

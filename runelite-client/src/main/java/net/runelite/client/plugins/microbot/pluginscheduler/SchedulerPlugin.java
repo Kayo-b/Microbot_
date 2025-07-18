@@ -1187,7 +1187,7 @@ public class SchedulerPlugin extends Plugin {
      * Update all UI panels with the current state.
      * Throttled to prevent excessive refresh calls.
      */
-    void updatePanels() {
+    public void updatePanels() {
         long currentTime = System.currentTimeMillis();
         
         // Throttle panel updates to prevent excessive refreshes
@@ -1240,6 +1240,9 @@ public class SchedulerPlugin extends Plugin {
         }
     }
 
+    public void updateScheduledPluginFromJson(List<PluginScheduleEntry> newPluginEntry) {
+        scheduledPlugins = newPluginEntry;
+    }
 
     /**
      * Adds conditions to a scheduled plugin with support for saving to a specific file
@@ -1357,7 +1360,8 @@ public class SchedulerPlugin extends Plugin {
             }
             
             // Replace current plugins
-            scheduledPlugins = loadedPlugins;
+            updateScheduledPluginFromJson(loadedPlugins);
+            // scheduledPlugins = loadedPlugins;
             
             // Update UI
             SwingUtilities.invokeLater(this::updatePanels);
@@ -1522,7 +1526,7 @@ public class SchedulerPlugin extends Plugin {
      * This must be done after deserialization since Plugin objects can't be
      * serialized directly.
      */
-    private void resolvePluginReferences(PluginScheduleEntry scheduled) {
+    public void resolvePluginReferences(PluginScheduleEntry scheduled) {
         if (scheduled.getName() == null) {
             return;
         }
@@ -2810,7 +2814,7 @@ public class SchedulerPlugin extends Plugin {
      * 
      * @param entry The plugin schedule entry to register the callback with
      */
-    private void registerStopCompletionCallback(PluginScheduleEntry entry) {
+    public void registerStopCompletionCallback(PluginScheduleEntry entry) {
         entry.setStopCompletionCallback((stopEntry, wasSuccessful) -> {
             // Save scheduled plugins state when a plugin stop is completed
             saveScheduledPlugins();
