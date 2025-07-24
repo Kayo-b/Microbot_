@@ -15,7 +15,7 @@ import java.nio.file.Paths;
 
 @Slf4j
 public class SocketAutomationManager {
-    private static final int DEFAULT_PORT = 45678;
+    private int DEFAULT_PORT = 45678;
     private static final String SCHEDULES_DIR = System.getProperty("user.home") + "/.microbot/schedules";
     
     // private final SchedulerPlugin schedulerPlugin; // used only for initialization
@@ -36,7 +36,8 @@ public class SocketAutomationManager {
 
     public void startSocketListener() {
         if (running) {
-            log.warn("Socket automation manager is already running");
+            log.warn("Socket automation manager is already running on port {}", DEFAULT_PORT);
+            Microbot.log("Socket automation manager is already running on port " + DEFAULT_PORT);
             return;
         }
 
@@ -72,6 +73,75 @@ public class SocketAutomationManager {
         socketThread.setName("SocketAutomationManager");
         socketThread.setDaemon(true);
         socketThread.start();
+    }
+
+    public ApiResponse startNewSocketListener() {
+        try {
+            // Find next available port
+            int newPort = findNextAvailablePort(DEFAULT_PORT + 1);
+            
+            // Create new socket automation manager instance for the new port
+            Thread newSocketThread = new Thread(() -> {
+                try {
+                    ServerSocket newServerSocket = new ServerSocket(newPort);
+                    Microbot.log("New socket automation listener started on port " + newPort);
+                    log.info("New socket automation listener started on port {}", newPort);
+                    
+                    while (!Thread.currentThread().isInterrupted()) {
+                        try {
+                            Socket client = newServerSocket.accept();
+                            new Thread(() -> handleClientConnection(client)).start();
+                        } catch (IOException e) {
+                            if (!Thread.currentThread().isInterrupted()) {
+                                log.error("Error accepting client connection on port {}: {}", newPort, e.getMessage());
+                            }
+                            break;
+                        }
+                    }
+                } catch (IOException e) {
+                    log.error("Failed to start socket automation server on port {}: {}", newPort, e.getMessage());
+                } finally {
+                    log.info("Socket automation listener on port {} stopped", newPort);
+                }
+            });
+            
+            newSocketThread.setName("SocketAutomationManager-" + newPort);
+            newSocketThread.setDaemon(true);
+            newSocketThread.start();
+            
+            return new ApiResponse(true, "New socket listener started on port " + newPort, newPort);
+            
+        } catch (Exception e) {
+            log.error("Failed to start new socket listener: {}", e.getMessage(), e);
+            return new ApiResponse(false, "Failed to start new socket listener: " + e.getMessage(), 0);
+        }
+    }
+
+    private int findNextAvailablePort(int startPort) {
+        int port = startPort;
+        while (port < 65535) {
+            try (ServerSocket testSocket = new ServerSocket(port)) {
+                return port;
+            } catch (IOException e) {
+                port++;
+            }
+        }
+        throw new RuntimeException("No available ports found starting from " + startPort);
+    }
+
+    private ApiResponse getSocketInfo() {
+        try {
+            JsonObject info = new JsonObject();
+            info.addProperty("mainPort", DEFAULT_PORT);
+            info.addProperty("isMainSocketRunning", isRunning());
+            info.addProperty("schedulesDirectory", SCHEDULES_DIR);
+            
+            return new ApiResponse(true, "Socket information retrieved", 1, info);
+            
+        } catch (Exception e) {
+            log.error("Error getting socket info: {}", e.getMessage(), e);
+            return new ApiResponse(false, "Failed to get socket info: " + e.getMessage(), 0);
+        }
     }
 
     private void handleClientConnection(Socket client) {
@@ -140,6 +210,10 @@ public class SocketAutomationManager {
                     return apiController.clearAllSchedules();
                 case "add_schedule_entry":
                     return addScheduleEntry(command);
+                case "start_new_socket":
+                    return startNewSocketListener();
+                case "get_socket_info":
+                    return getSocketInfo();
                 default:
                     return new ApiResponse(false, "Unknown action: " + action, 0);
             }

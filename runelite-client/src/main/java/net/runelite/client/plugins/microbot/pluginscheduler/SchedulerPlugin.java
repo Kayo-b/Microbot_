@@ -329,6 +329,8 @@ public class SchedulerPlugin extends Plugin {
         
         // Shutdown socket automation manager
         if (socketAutomationManager != null) {
+            Microbot.log("socket automation shutdown != null");
+            log.info("socket automation shutdown != null");
             socketAutomationManager.shutdown();
             socketAutomationManager = null;
         }
