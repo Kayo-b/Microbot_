@@ -1,4 +1,4 @@
-package net.runelite.client.plugins.microbot.pluginscheduler.automation;
+package net.runelite.client.plugins.microbot.socketautomation.api;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
