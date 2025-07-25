@@ -1,51 +1,128 @@
-package net.runelite.client.plugins.microbot.pluginscheduler.automation;
+package net.runelite.client.plugins.microbot.socketautomation.controllers;
 
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.google.gson.JsonObject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.pluginscheduler.SchedulerPlugin;
 import net.runelite.client.plugins.microbot.pluginscheduler.SchedulerState;
 import net.runelite.client.plugins.microbot.pluginscheduler.model.PluginScheduleEntry;
+import net.runelite.client.plugins.microbot.socketautomation.api.ApiResponse;
 
 import javax.swing.SwingUtilities;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 
 @Slf4j
-public class SchedulerApiController {
+public class SchedulerPluginController implements PluginController {
+    private static final String SCHEDULES_DIR = System.getProperty("user.home") + "/.microbot/schedules";
+    private static final String VERSION = "0.1.0";
+    
     private final SchedulerPlugin schedulerPlugin;
     private final Gson gson = new Gson();
-    public static final String VERSION = "0.1.0";
     
-    public SchedulerApiController(SchedulerPlugin schedulerPlugin) {
+    public SchedulerPluginController(SchedulerPlugin schedulerPlugin) {
         this.schedulerPlugin = schedulerPlugin;
+        createSchedulesDirectory();
     }
-
-
-    public ApiResponse loadScheduleFromJson(String json) {
+    
+    @Override
+    public ApiResponse processCommand(String action, JsonObject command) {
+        switch (action) {
+            case "load_schedule_file":
+                return loadScheduleFromFile(command);
+            case "load_schedule_json":
+                return loadScheduleFromJson(command);
+            case "start_scheduler":
+                return startScheduler();
+            case "stop_scheduler":
+                return stopScheduler();
+            case "pause_scheduler":
+                return pauseScheduler();
+            case "resume_scheduler":
+                return resumeScheduler();
+            case "get_status":
+                return getStatus();
+            case "list_schedules":
+                return listAvailableScheduleFiles();
+            case "clear_schedules":
+                return clearAllSchedules();
+            case "add_schedule_entry":
+                return addScheduleEntry(command);
+            default:
+                return new ApiResponse(false, "Unknown scheduler action: " + action, 0);
+        }
+    }
+    
+    @Override
+    public String getPluginName() {
+        return "Scheduler";
+    }
+    
+    @Override
+    public String[] getSupportedActions() {
+        return new String[]{
+            "load_schedule_file", "load_schedule_json", "start_scheduler", 
+            "stop_scheduler", "pause_scheduler", "resume_scheduler", 
+            "get_status", "list_schedules", "clear_schedules", "add_schedule_entry"
+        };
+    }
+    
+    private ApiResponse loadScheduleFromFile(JsonObject command) {
         try {
-
-            List<PluginScheduleEntry> loadedPlugins = 
-            PluginScheduleEntry.fromJson(json, this.VERSION); 
-
+            if (!command.has("filename")) {
+                return new ApiResponse(false, "Missing 'filename' field", 0);
+            }
+            
+            String filename = command.get("filename").getAsString();
+            Path filePath = Paths.get(SCHEDULES_DIR, filename);
+            
+            if (!Files.exists(filePath)) {
+                return new ApiResponse(false, "Schedule file not found: " + filename, 0);
+            }
+            
+            String content = Files.readString(filePath);
+            return loadScheduleFromJson(content);
+            
+        } catch (Exception e) {
+            log.error("Error loading schedule from file: {}", e.getMessage(), e);
+            return new ApiResponse(false, "Failed to load schedule file: " + e.getMessage(), 0);
+        }
+    }
+    
+    private ApiResponse loadScheduleFromJson(JsonObject command) {
+        try {
+            if (!command.has("schedule")) {
+                return new ApiResponse(false, "Missing 'schedule' field", 0);
+            }
+            
+            String scheduleJson = command.get("schedule").getAsString();
+            return loadScheduleFromJson(scheduleJson);
+            
+        } catch (Exception e) {
+            log.error("Error loading schedule from JSON: {}", e.getMessage(), e);
+            return new ApiResponse(false, "Failed to load schedule from JSON: " + e.getMessage(), 0);
+        }
+    }
+    
+    private ApiResponse loadScheduleFromJson(String json) {
+        try {
+            List<PluginScheduleEntry> loadedPlugins = PluginScheduleEntry.fromJson(json, VERSION);
+            
             if (loadedPlugins == null) {
                 log.error("Failed to parse JSON from file");
-                return new ApiResponse(false, "Failed to parse JSON from file",0);
+                return new ApiResponse(false, "Failed to parse JSON from file", 0);
             }
-
-            // Resolve plugin references
+            
             for (PluginScheduleEntry entry : loadedPlugins) {
-
                 schedulerPlugin.resolvePluginReferences(entry);
-
-                // Register stop completion callback
                 schedulerPlugin.registerStopCompletionCallback(entry);
             }
             
-            // Replace current plugins
             schedulerPlugin.updateScheduledPluginFromJson(loadedPlugins);
-
-            // Update UI
             SwingUtilities.invokeLater(() -> schedulerPlugin.updatePanels());
             
             Microbot.log("Loaded " + loadedPlugins.size() + " schedule entries from JSON");
@@ -58,9 +135,14 @@ public class SchedulerApiController {
         }
     }
     
-    public ApiResponse addScheduleEntryFromJson(String jsonContent) {
+    private ApiResponse addScheduleEntry(JsonObject command) {
         try {
-            PluginScheduleEntry entry = gson.fromJson(jsonContent, PluginScheduleEntry.class);
+            if (!command.has("entry")) {
+                return new ApiResponse(false, "Missing 'entry' field", 0);
+            }
+            
+            String entryJson = command.get("entry").getAsJsonObject().toString();
+            PluginScheduleEntry entry = gson.fromJson(entryJson, PluginScheduleEntry.class);
             
             if (entry == null) {
                 return new ApiResponse(false, "Invalid schedule entry JSON", 0);
@@ -79,7 +161,7 @@ public class SchedulerApiController {
         }
     }
     
-    public ApiResponse startScheduler() {
+    private ApiResponse startScheduler() {
         try {
             schedulerPlugin.startScheduler();
             Microbot.log("Scheduler started via automation API");
@@ -91,7 +173,7 @@ public class SchedulerApiController {
         }
     }
     
-    public ApiResponse stopScheduler() {
+    private ApiResponse stopScheduler() {
         try {
             schedulerPlugin.stopScheduler();
             Microbot.log("Scheduler stopped via automation API");
@@ -103,7 +185,7 @@ public class SchedulerApiController {
         }
     }
     
-    public ApiResponse pauseScheduler() {
+    private ApiResponse pauseScheduler() {
         try {
             boolean wasPaused = schedulerPlugin.pauseScheduler();
             String message = wasPaused ? "Scheduler was already paused" : "Scheduler paused";
@@ -116,7 +198,7 @@ public class SchedulerApiController {
         }
     }
     
-    public ApiResponse resumeScheduler() {
+    private ApiResponse resumeScheduler() {
         try {
             schedulerPlugin.resumeScheduler();
             Microbot.log("Scheduler resumed via automation API");
@@ -128,7 +210,7 @@ public class SchedulerApiController {
         }
     }
     
-    public ApiResponse getStatus() {
+    private ApiResponse getStatus() {
         try {
             SchedulerStatus status = new SchedulerStatus();
             status.setState(schedulerPlugin.getCurrentState());
@@ -144,7 +226,7 @@ public class SchedulerApiController {
         }
     }
     
-    public ApiResponse clearAllSchedules() {
+    private ApiResponse clearAllSchedules() {
         try {
             int count = schedulerPlugin.getScheduledPlugins().size();
             schedulerPlugin.getScheduledPlugins().clear();
@@ -160,7 +242,38 @@ public class SchedulerApiController {
         }
     }
     
-    // inner class for status response
+    private ApiResponse listAvailableScheduleFiles() {
+        try {
+            Path schedulesPath = Paths.get(SCHEDULES_DIR);
+            if (!Files.exists(schedulesPath)) {
+                return new ApiResponse(true, "No schedules directory found", 0, new String[0]);
+            }
+            
+            String[] scheduleFiles = Files.list(schedulesPath)
+                    .filter(path -> path.toString().toLowerCase().endsWith(".json"))
+                    .map(path -> path.getFileName().toString())
+                    .toArray(String[]::new);
+            
+            return new ApiResponse(true, "Schedule files listed", scheduleFiles.length, scheduleFiles);
+            
+        } catch (Exception e) {
+            log.error("Error listing schedule files: {}", e.getMessage(), e);
+            return new ApiResponse(false, "Failed to list schedule files: " + e.getMessage(), 0);
+        }
+    }
+    
+    private void createSchedulesDirectory() {
+        try {
+            Path schedulesPath = Paths.get(SCHEDULES_DIR);
+            if (!Files.exists(schedulesPath)) {
+                Files.createDirectories(schedulesPath);
+                log.info("Created schedules directory: {}", SCHEDULES_DIR);
+            }
+        } catch (Exception e) {
+            log.error("Failed to create schedules directory: {}", e.getMessage(), e);
+        }
+    }
+    
     public static class SchedulerStatus {
         private SchedulerState state;
         private PluginScheduleEntry currentPlugin;
@@ -168,7 +281,6 @@ public class SchedulerApiController {
         private int scheduledPluginCount;
         private boolean paused;
         
-        //getters and setters
         public SchedulerState getState() { return state; }
         public void setState(SchedulerState state) { this.state = state; }
         
