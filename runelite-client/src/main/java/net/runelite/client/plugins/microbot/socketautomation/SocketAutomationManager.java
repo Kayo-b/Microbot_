@@ -33,6 +33,8 @@ public class SocketAutomationManager {
         this.config = config;
         this.controllerRegistry = new PluginControllerRegistry();
         this.executorService = Executors.newFixedThreadPool(config.maxConnections());
+        
+        InstanceManager.getInstance().registerCurrentInstance(controllerRegistry);
     }
     
     public void startSocketListener() {
@@ -223,13 +225,67 @@ public class SocketAutomationManager {
                     return getSocketInfo();
                 case "list_supported_plugins":
                     return listSupportedPlugins();
+                case "list_instances":
+                    return listInstances();
+                case "get_current_instance":
+                    return getCurrentInstance();
+                case "debug_registry":
+                    return debugControllerRegistry();
                 default:
-                    return controllerRegistry.processCommand(action, command);
+                    return routeCommandToInstance(action, command);
             }
         } catch (Exception e) {
             log.error("Error processing automation command: {}", e.getMessage(), e);
             return new ApiResponse(false, "Error processing command: " + e.getMessage(), 0);
         }
+    }
+    
+    private ApiResponse routeCommandToInstance(String action, JsonObject command) {
+        String targetInstanceId = command.has("instance") ? 
+            command.get("instance").getAsString() : 
+            InstanceManager.getInstance().getCurrentInstanceId();
+            
+        InstanceManager.InstanceContext instance = InstanceManager.getInstance().getInstance(targetInstanceId);
+        
+        if (instance == null) {
+            return new ApiResponse(false, "Instance not found: " + targetInstanceId, 0);
+        }
+        
+        if (!instance.isActive()) {
+            return new ApiResponse(false, "Instance not active: " + targetInstanceId, 0);
+        }
+        
+        instance.updateActivity();
+        return instance.getControllerRegistry().processCommand(action, command);
+    }
+    
+    private ApiResponse listInstances() {
+        try {
+            var instances = InstanceManager.getInstance().getAllInstances();
+            JsonObject result = new JsonObject();
+            
+            for (var entry : instances.entrySet()) {
+                JsonObject instanceInfo = new JsonObject();
+                instanceInfo.addProperty("active", entry.getValue().isActive());
+                instanceInfo.addProperty("lastActivity", entry.getValue().getLastActivity());
+                instanceInfo.addProperty("controllers", 
+                    entry.getValue().getControllerRegistry() != null ? 
+                    entry.getValue().getControllerRegistry().getSupportedPlugins().size() : 0);
+                result.add(entry.getKey(), instanceInfo);
+            }
+            
+            return new ApiResponse(true, "Instances listed", instances.size(), result);
+        } catch (Exception e) {
+            log.error("Error listing instances: {}", e.getMessage(), e);
+            return new ApiResponse(false, "Failed to list instances: " + e.getMessage(), 0);
+        }
+    }
+    
+    private ApiResponse getCurrentInstance() {
+        String currentId = InstanceManager.getInstance().getCurrentInstanceId();
+        JsonObject result = new JsonObject();
+        result.addProperty("instanceId", currentId);
+        return new ApiResponse(true, "Current instance ID", 0, result);
     }
     
     private ApiResponse getSocketInfo() {
@@ -253,6 +309,21 @@ public class SocketAutomationManager {
         return new ApiResponse(true, "Supported plugins listed", 
                               controllerRegistry.getSupportedPlugins().size(), 
                               controllerRegistry.getSupportedPlugins());
+    }
+    
+    private ApiResponse debugControllerRegistry() {
+        try {
+            JsonObject debug = new JsonObject();
+            debug.addProperty("registryClass", controllerRegistry.getClass().getSimpleName());
+            debug.addProperty("registryHashCode", controllerRegistry.hashCode());
+            debug.addProperty("supportedPluginsCount", controllerRegistry.getSupportedPlugins().size());
+            debug.add("supportedPlugins", gson.toJsonTree(controllerRegistry.getSupportedPlugins()));
+            
+            return new ApiResponse(true, "Controller registry debug info", 1, debug);
+        } catch (Exception e) {
+            log.error("Error getting debug info: {}", e.getMessage(), e);
+            return new ApiResponse(false, "Failed to get debug info: " + e.getMessage(), 0);
+        }
     }
     
     public void shutdown() {
