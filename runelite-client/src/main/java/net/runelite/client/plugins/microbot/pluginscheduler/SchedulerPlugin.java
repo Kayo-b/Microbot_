@@ -51,11 +51,13 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.PluginChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.breakhandler.BreakHandlerConfig;
 import net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript;
 import net.runelite.client.plugins.microbot.pluginscheduler.api.SchedulablePlugin;
-import net.runelite.client.plugins.microbot.pluginscheduler.automation.SocketAutomationManager;
+import net.runelite.client.plugins.microbot.socketautomation.SocketAutomationPlugin;
+import net.runelite.client.plugins.microbot.socketautomation.controllers.SchedulerPluginController;
 import net.runelite.client.plugins.microbot.pluginscheduler.condition.Condition;
 import net.runelite.client.plugins.microbot.pluginscheduler.condition.time.TimeCondition;
 import net.runelite.client.plugins.microbot.pluginscheduler.event.PluginScheduleEntryFinishedEvent;
@@ -108,6 +110,9 @@ public class SchedulerPlugin extends Plugin {
     private ScheduledExecutorService executorService;
     @Inject
     private OverlayManager overlayManager;
+    
+    @Inject
+    private PluginManager pluginManager;
 
     private NavigationButton navButton;
     private SchedulerPanel panel;
@@ -164,8 +169,8 @@ public class SchedulerPlugin extends Plugin {
     @Inject
     private Notifier notifier;
     
-    // Socket automation manager
-    private SocketAutomationManager socketAutomationManager;
+    // Socket automation integration
+    private SchedulerPluginController socketController;
     
     // UI update throttling
     private long lastPanelUpdateTime = 0;
@@ -190,9 +195,32 @@ public class SchedulerPlugin extends Plugin {
             overlayManager.add(overlay);
         }
         
-        // Initialize and start socket automation manager
-        socketAutomationManager = new SocketAutomationManager(this);
-        socketAutomationManager.startSocketListener();
+        // Register with socket automation plugin if enabled
+        SocketAutomationPlugin socketPlugin = (SocketAutomationPlugin) pluginManager.getPlugins().stream()
+            .filter(p -> p instanceof SocketAutomationPlugin)
+            .findFirst()
+            .orElse(null);
+            
+        if (socketPlugin != null) {
+            log.info("Found SocketAutomationPlugin: {}", socketPlugin.getClass().getSimpleName());
+            boolean isEnabled = pluginManager.isPluginEnabled(socketPlugin);
+            log.info("SocketAutomationPlugin enabled: {}", isEnabled);
+            
+            if (isEnabled) {
+                socketController = new SchedulerPluginController(this);
+                socketPlugin.getControllerRegistry().registerController(socketController);
+                log.info("Successfully registered SchedulerPluginController with SocketAutomationPlugin");
+            } else {
+                log.warn("SocketAutomationPlugin is not enabled, skipping controller registration");
+            }
+        } else {
+            log.warn("SocketAutomationPlugin not found, cannot register scheduler controller");
+            // List all available plugins for debugging
+            var allPlugins = pluginManager.getPlugins();
+            log.info("Available plugins: {}", allPlugins.stream()
+                .map(p -> p.getClass().getSimpleName())
+                .collect(Collectors.toList()));
+        }
 
         // Load saved schedules from config
 
@@ -327,12 +355,17 @@ public class SchedulerPlugin extends Plugin {
             schedulerWindow = null;
         }
         
-        // Shutdown socket automation manager
-        if (socketAutomationManager != null) {
-            Microbot.log("socket automation shutdown != null");
-            log.info("socket automation shutdown != null");
-            socketAutomationManager.shutdown();
-            socketAutomationManager = null;
+        // Unregister from socket automation plugin if registered
+        if (socketController != null) {
+            SocketAutomationPlugin socketPlugin = (SocketAutomationPlugin) pluginManager.getPlugins().stream()
+                .filter(p -> p instanceof SocketAutomationPlugin)
+                .findFirst()
+                .orElse(null);
+                
+            if (socketPlugin != null && socketPlugin.getControllerRegistry() != null) {
+                socketPlugin.getControllerRegistry().unregisterController("scheduler");
+            }
+            socketController = null;
         }
         
         setState(SchedulerState.UNINITIALIZED);
@@ -2909,7 +2942,7 @@ public class SchedulerPlugin extends Plugin {
         // resume time conditions on the current plugin
         getCurrentPlugin().resume();
 
-        
+    
 
         boolean anyPausedPluginEntry = anyPluginEntryPaused();
         log.info("resumed currently running plugin: {} -> are any paused plugin? -{} - Pause Event? -{}", getCurrentPlugin().getName(),anyPausedPluginEntry,

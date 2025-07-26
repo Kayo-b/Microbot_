@@ -3,7 +3,6 @@ package net.runelite.client.plugins.microbot.socketautomation.controllers;
 import com.google.gson.JsonObject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.plugins.microbot.socketautomation.api.ApiResponse;
-import net.runelite.client.plugins.microbot.socketautomation.controller.PluginController;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
