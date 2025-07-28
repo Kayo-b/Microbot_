@@ -16,19 +16,16 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.aiofighter.bank.BankerScript;
 import net.runelite.client.plugins.microbot.aiofighter.cannon.CannonScript;
 import net.runelite.client.plugins.microbot.aiofighter.combat.*;
-import net.runelite.client.plugins.microbot.aiofighter.controller.AIOFighterController;
 import net.runelite.client.plugins.microbot.aiofighter.enums.PrayerStyle;
 import net.runelite.client.plugins.microbot.aiofighter.enums.State;
 import net.runelite.client.plugins.microbot.aiofighter.loot.LootScript;
 import net.runelite.client.plugins.microbot.aiofighter.safety.SafetyScript;
 import net.runelite.client.plugins.microbot.aiofighter.skill.AttackStyleScript;
 import net.runelite.client.plugins.microbot.inventorysetups.InventorySetup;
-import net.runelite.client.plugins.microbot.socketautomation.SocketAutomationPlugin;
 import net.runelite.client.plugins.microbot.util.combat.Rs2Combat;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.prayer.Rs2Prayer;
@@ -90,8 +87,6 @@ public class AIOFighterPlugin extends Plugin {
     @Inject
     private ConfigManager configManager;
     @Inject
-    private PluginManager pluginManager;
-    @Inject
     private OverlayManager overlayManager;
     @Inject
     private AIOFighterOverlay playerAssistOverlay;
@@ -100,8 +95,6 @@ public class AIOFighterPlugin extends Plugin {
     private MenuEntry lastClick;
     private Point lastMenuOpenedPoint;
     private WorldPoint trueTile;
-    
-    private AIOFighterController socketController;
 
     protected ScheduledExecutorService initializerExecutor = Executors.newSingleThreadScheduledExecutor();
 
@@ -155,29 +148,9 @@ public class AIOFighterPlugin extends Plugin {
         //slayerScript.run(config);
         Microbot.getSpecialAttackConfigs()
                 .setSpecialAttack(true);
-                
-        SocketAutomationPlugin socketPlugin = (SocketAutomationPlugin) pluginManager.getPlugins().stream()
-            .filter(p -> p instanceof SocketAutomationPlugin)
-            .findFirst()
-            .orElse(null);
-            
-        if (socketPlugin != null && pluginManager.isPluginEnabled(socketPlugin)) {
-            socketController = new AIOFighterController(this);
-            socketPlugin.getControllerRegistry().registerController(socketController);
-            log.info("Successfully registered AIOFighterController with SocketAutomationPlugin");
-        }
     }
 
     protected void shutDown() {
-        SocketAutomationPlugin socketPlugin = (SocketAutomationPlugin) pluginManager.getPlugins().stream()
-            .filter(p -> p instanceof SocketAutomationPlugin)
-            .findFirst()
-            .orElse(null);
-            
-        if (socketPlugin != null) {
-            socketPlugin.getControllerRegistry().unregisterController("aio_fighter");
-        }
-        
         lootScript.shutdown();
         cannonScript.shutdown();
         attackNpc.shutdown();
@@ -255,7 +228,6 @@ public class AIOFighterPlugin extends Plugin {
         );
 
     }
-
     private void removeNpcFromList(String npcName) {
         configManager.setConfiguration(
                 "PlayerAssistant",
@@ -463,75 +435,5 @@ public class AIOFighterPlugin extends Plugin {
                 .setIdentifier(event.getIdentifier())
                 .setType(MenuAction.RUNELITE)
                 .onClick(this::onMenuOptionClicked);
-    }
-    
-    // socket automation methods
-    public void startFighting() {
-        if (!isRunning()) {
-            setState(State.IDLE);
-        }
-    }
-    
-    public void stopFighting() {
-        setState(State.UNKNOWN);
-    }
-    
-    public boolean isRunning() {
-        State currentState = getState();
-        return currentState != null && currentState != State.UNKNOWN;
-    }
-    
-    public State getCurrentState() {
-        return getState();
-    }
-    
-    public AIOFighterConfig getConfig() {
-        return config;
-    }
-    
-    public void setCenterTile(WorldPoint worldPoint) {
-        setCenter(worldPoint);
-    }
-    
-    public void setSafeSpotTile(WorldPoint worldPoint) {
-        setSafeSpot(worldPoint);
-    }
-    
-    public void addNpcToAttackList(String npcName) {
-        addNpcToList(npcName);
-    }
-    
-    public void removeNpcFromAttackList(String npcName) {
-        removeNpcFromList(npcName);
-    }
-    
-    public void updateUseFoodConfig(boolean useFood) {
-        if (configManager != null) {
-            configManager.setConfiguration("PlayerAssistant", "Food", useFood);
-        }
-    }
-    
-    public void updateUsePrayerConfig(boolean usePrayer) {
-        if (configManager != null) {
-            configManager.setConfiguration("PlayerAssistant", "PrayFlick", usePrayer);
-        }
-    }
-    
-    public void updateUseCannonConfig(boolean useCannon) {
-        if (configManager != null) {
-            configManager.setConfiguration("PlayerAssistant", "Cannon", useCannon);
-        }
-    }
-    
-    public void updateLootItemsConfig(String lootItems) {
-        if (configManager != null) {
-            configManager.setConfiguration("PlayerAssistant", "Loot items", lootItems);
-        }
-    }
-    
-    public void updateAttackableNpcsConfig(String attackableNpcs) {
-        if (configManager != null) {
-            configManager.setConfiguration("PlayerAssistant", "monster", attackableNpcs);
-        }
     }
 }
