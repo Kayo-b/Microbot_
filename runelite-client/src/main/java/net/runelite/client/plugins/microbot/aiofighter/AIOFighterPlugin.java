@@ -33,6 +33,8 @@ import net.runelite.client.ui.JagexColors;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.Text;
+import net.runelite.client.plugins.microbot.pluginscheduler.api.SchedulablePlugin;
+import net.runelite.client.plugins.microbot.pluginscheduler.event.PluginScheduleEntrySoftStopEvent;
 
 import javax.inject.Inject;
 import java.awt.*;
@@ -53,7 +55,7 @@ import java.util.stream.Collectors;
         enabledByDefault = false
 )
 @Slf4j
-public class AIOFighterPlugin extends Plugin {
+public class AIOFighterPlugin extends Plugin implements SchedulablePlugin {
     public static final String version = "1.3.1";
     private static final String SET = "Set";
     private static final String CENTER_TILE = ColorUtil.wrapWithColorTag("Center Tile", JagexColors.MENU_TARGET);
@@ -97,6 +99,17 @@ public class AIOFighterPlugin extends Plugin {
     private WorldPoint trueTile;
 
     protected ScheduledExecutorService initializerExecutor = Executors.newSingleThreadScheduledExecutor();
+
+    @Override
+    public void onPluginScheduleEntrySoftStopEvent(PluginScheduleEntrySoftStopEvent event) {
+        if (event.getPlugin() == this) {
+            // Cleanup operations
+            Microbot.getClientThread().invokeLater(() -> {
+                Microbot.stopPlugin(this);
+            });
+        }
+    }
+
 
     @Provides
     AIOFighterConfig provideConfig(ConfigManager configManager) {
