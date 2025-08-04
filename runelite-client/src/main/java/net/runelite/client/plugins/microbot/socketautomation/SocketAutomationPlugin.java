@@ -8,6 +8,7 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.socketautomation.controllers.ConfigController;
 import net.runelite.client.plugins.microbot.socketautomation.controllers.PluginControllerRegistry;
 
 import javax.inject.Inject;
@@ -37,6 +38,9 @@ public class SocketAutomationPlugin extends Plugin {
     @Override
     protected void startUp() {
         socketManager = new SocketAutomationManager(config);
+        
+        ConfigController configController = new ConfigController(configManager);
+        socketManager.getControllerRegistry().registerController(configController);
         
         if (config.autoStartEnabled()) {
             socketManager.startSocketListener();
