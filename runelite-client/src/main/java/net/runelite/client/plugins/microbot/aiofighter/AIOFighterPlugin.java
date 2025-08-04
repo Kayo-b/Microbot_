@@ -100,6 +100,12 @@ public class AIOFighterPlugin extends Plugin implements SchedulablePlugin {
 
     protected ScheduledExecutorService initializerExecutor = Executors.newSingleThreadScheduledExecutor();
 
+    @Provides
+    AIOFighterConfig provideConfig(ConfigManager configManager) {
+        return configManager.getConfig(AIOFighterConfig.class);
+    }
+    
+    @Subscribe
     @Override
     public void onPluginScheduleEntrySoftStopEvent(PluginScheduleEntrySoftStopEvent event) {
         if (event.getPlugin() == this) {
@@ -108,12 +114,6 @@ public class AIOFighterPlugin extends Plugin implements SchedulablePlugin {
                 Microbot.stopPlugin(this);
             });
         }
-    }
-
-
-    @Provides
-    AIOFighterConfig provideConfig(ConfigManager configManager) {
-        return configManager.getConfig(AIOFighterConfig.class);
     }
 
     @Override
