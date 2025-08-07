@@ -106,13 +106,24 @@ public class BankerScript extends Script {
      * Returns true if the player needs to bank (e.g., missing potions, full inventory).
      */
     public boolean needBanking() {
-        if(config.currentInventorySetup() == null){
+        String setupName = null;
+        
+        if (config.currentInventorySetup() != null) {
+            setupName = config.currentInventorySetup().getName();
+        } else if (config.slayerMode() && config.defaultInventorySetup() != null) {
             AIOFighterPlugin.setCurrentSlayerInventorySetup(config.defaultInventorySetup());
+            setupName = config.defaultInventorySetup().getName();
+        } else if (!config.slayerMode() && config.defaultInventorySetup() != null) {
+            AIOFighterPlugin.setCurrentSlayerInventorySetup(config.defaultInventorySetup());
+            setupName = config.defaultInventorySetup().getName();
+        } 
+
+        if (setupName == null) {
+            Microbot.log("No inventory setup configured for banking.");
+            return false;
         }
-        Rs2InventorySetup inventorySetup = new Rs2InventorySetup(
-                config.slayerMode() ? config.currentInventorySetup().getName() : config.inventorySetup().getName(),
-                mainScheduledFuture
-        );
+
+        Rs2InventorySetup inventorySetup = new Rs2InventorySetup(setupName, mainScheduledFuture);
 
         if(!config.bank()){
             return false;
@@ -121,7 +132,7 @@ public class BankerScript extends Script {
         if(bankingTriggered) {
             return true;
         }
-
+        
         // (1) If inventory is full, we need to bank
         if (Rs2Inventory.isFull()) {
             Microbot.log("Inventory is full, triggering banking.");
@@ -333,11 +344,25 @@ public class BankerScript extends Script {
 
     public void withdrawUpkeepItems(AIOFighterConfig config) {
         if (config.useInventorySetup() || config.slayerMode()) {
-            Rs2InventorySetup inventorySetup = new Rs2InventorySetup(config.slayerMode() ? config.currentInventorySetup().getName() : config.inventorySetup().getName(), mainScheduledFuture);
-            if (!Rs2Bank.isOpen()) {
-                Microbot.log("Bank didn't open, returning.");
+            String setupName = null;
+            
+            if (config.currentInventorySetup() != null) {
+                setupName = config.currentInventorySetup().getName();
+            } else if (config.slayerMode() && config.defaultInventorySetup() != null) {
+                AIOFighterPlugin.setCurrentSlayerInventorySetup(config.defaultInventorySetup());
+                setupName = config.defaultInventorySetup().getName();
+            } else if (!config.slayerMode() && config.defaultInventorySetup() != null) {
+                AIOFighterPlugin.setCurrentSlayerInventorySetup(config.defaultInventorySetup());
+                setupName = config.defaultInventorySetup().getName();
+            }
+            
+            if (setupName == null) {
+                Microbot.log("No inventory setup configured for withdrawal.");
                 return;
             }
+            
+            Rs2InventorySetup inventorySetup = new Rs2InventorySetup(setupName, mainScheduledFuture);
+            
             Microbot.log("Loading equipment for: " + config.currentInventorySetup().getName());
             inventorySetup.loadEquipment();
             inventorySetup.loadInventory();

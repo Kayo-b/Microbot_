@@ -116,6 +116,19 @@ public class AIOFighterPlugin extends Plugin implements SchedulablePlugin {
             });
         }
     }
+    private void initializeInventorySetup() {
+        if (config.slayerMode()) {
+            log.info("Slayer mode: inventory setup handled by InventorySetupUtil");
+        } else {
+            log.info("Non-slayer mode: using default inventory setup");
+            if (config.defaultInventorySetup() != null) {
+                log.info("Setting currentInventorySetup to: " + config.defaultInventorySetup().getName());
+                setCurrentSlayerInventorySetup(config.defaultInventorySetup());
+            } else {
+                log.error("No default inventory setup configured");
+            }
+        }
+    }
 
     @Override
     protected void startUp() throws AWTException {
@@ -165,6 +178,7 @@ public class AIOFighterPlugin extends Plugin implements SchedulablePlugin {
         Rs2Slayer.blacklistedSlayerMonsters = getBlacklistedSlayerNpcs();
         bankerScript.run(config);
         shopScript.run(config);
+        initializeInventorySetup();
     }
 
     protected void shutDown() {
